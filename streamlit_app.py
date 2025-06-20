@@ -1,79 +1,50 @@
-# Import python packages
 import streamlit as st
-#from snowflake.snowpark.context import get_active_session
 from snowflake.snowpark.functions import col
-# Write directly to the app
+
 st.title("Customize Your Smoothie")
-st.write(
-"Choose the fruits you want...."
-)
+st.write("Choose the fruits you want....")
 
-
+# Połączenie do Snowflake
 cnx = st.connection("snowflake")
-
-option = st.selectbox(
-    "What fruit",
-    ("Bannana", "Strowberries", "Peaches"),
-)
-
-st.write("You selected:", option)
-
-
-#session = get_active_session()
 session = cnx.session
 
+# Wybór owocu (statyczny selectbox)
+option = st.selectbox("What fruit", ("Banana", "Strawberries", "Peaches"))
+st.write("You selected:", option)
+
+# Pobranie danych z tabeli
 my_dataframe = session.table("smoothies.public.fruit_options").select(col('FRUIT_NAME'))
 st.dataframe(data=my_dataframe, use_container_width=True)
 
+# Lista dostępnych owoców
+ingredients = [row["FRUIT_NAME"] for row in my_dataframe.collect()]
+
+# Multiselect do wyboru składników
 ingredients_list = st.multiselect(
     "Select up to 5 ingredients",
-    my_dataframe
-    , max_selections=5
+    ingredients,
+    max_selections=5
 )
 
-#st.write(my_insert_stmt)
+# Pole tekstowe na nazwę zamówienia
 name_on_order = st.text_input("Name on Order")
 st.write(name_on_order)
 
+# Tylko jeśli coś wybrano
 if ingredients_list:
     st.write(ingredients_list)
     st.text(ingredients_list)
-    ingredients_string = ''
-    for fruit_chosen in ingredients_list:
-        ingredients_string += fruit_chosen + ' '
+    ingredients_string = ' '.join(ingredients_list)
 
     st.write(ingredients_string)
 
-my_insert_stmt = f"""insert into SMOOTHIES.PUBLIC.ORDERS(ingredients, name_on_order)
-values ('{ingredients_string}', '{name_on_order}')"""
+    # Przygotowanie INSERT
+    my_insert_stmt = f"""
+        INSERT INTO SMOOTHIES.PUBLIC.ORDERS (INGREDIENTS, NAME_ON_ORDER)
+        VALUES ('{ingredients_string}', '{name_on_order}')
+    """
 
-#st.write(my_insert_stmt)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-time_to_insert = st.button("Subbimit")
-
-if time_to_insert:
-    session.sql(my_insert_stmt).collect()
-    st.success('Your Smoothie is ordered!', icon="✅")
+    # Przycisk
+    if st.button("Submit"):
+        session.sql(my_insert_stmt).collect()
+        st.success('Your Smoothie is ordered!', icon="✅")
